@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cisco Router Automation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="brand">
+            <h2>Router Console</h2>
+            <span class="device-pill">192.168.10.239:32770</span>
+        </div>
+
+        <nav class="nav-menu">
+            <button
+                type="button"
+                class="nav-btn {{ 'active' if active_tab != 'config' else '' }}"
+                data-tab="dashboard"
+                onclick="switchTab('dashboard')"
+            >
+                Show Commands
+            </button>
+            <button
+                type="button"
+                class="nav-btn {{ 'active' if active_tab == 'config' else '' }}"
+                data-tab="config"
+                onclick="switchTab('config')"
+            >
+                Configuration
+            </button>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="container">
+            {% if error %}
+            <div class="error-box" id="alertBox">
+                <strong>Error:</strong> {{ error }}
+            </div>
+            {% endif %}
+
+            <!-- Main Page: Show Commands -->
+            <section id="dashboard" class="page-section {{ 'active' if active_tab != 'config' else '' }}">
+                <header>
+                    <h1>Router Automation Console</h1>
+                    <p>Run preset Cisco IOS verification commands.</p>
+                </header>
+
+                <div class="card toolbar">
+                    <div class="command-list">
+                        <span class="badge">show version</span>
+                        <span class="badge">show ip interface brief</span>
+                        <span class="badge">show running-config</span>
+                    </div>
+                    <form method="POST" action="/" class="loading-form">
+                        <input type="hidden" name="action" value="show">
+                        <button type="submit" class="btn-primary">Run Commands</button>
+                    </form>
+                </div>
+
+                {% if results %}
+                    {% for cmd, output in results.items() %}
+                    <div class="output-card">
+                        <div class="output-header">
+                            <code>Router# {{ cmd }}</code>
+                            <span>Output</span>
+                        </div>
+                        <pre>{{ output }}</pre>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </section>
+
+            <!-- Configuration Page -->
+            <section id="config" class="page-section {{ 'active' if active_tab == 'config' else '' }}">
+                <header>
+                    <h1>Router Configuration</h1>
+                    <p>Configure interfaces, device settings, and static routes using form inputs.</p>
+                </header>
+
+                {% if config_output %}
+                <div class="success-box">
+                    Configuration applied successfully.
+                </div>
+                <div class="output-card">
+                    <div class="output-header">
+                        <code>Router(config)#</code>
+                        <span>Applied Output</span>
+                    </div>
+                    <pre>{{ config_output }}</pre>
+                </div>
+                {% endif %}
+
+                <!-- Shared autocomplete lists -->
+                <datalist id="interface-list">
+                    <option value="GigabitEthernet0/0">
+                    <option value="GigabitEthernet0/1">
+                    <option value="FastEthernet0/0">
+                    <option value="FastEthernet0/1">
+                    <option value="Loopback0">
+                    <option value="Loopback1">
+                </datalist>
+
+                <datalist id="mask-list">
+                    <option value="255.255.255.0">
+                    <option value="255.255.255.252">
+                    <option value="255.255.255.255">
+                    <option value="255.255.0.0">
+                    <option value="255.0.0.0">
+                </datalist>
+
+                <!-- 1. Interface Configuration -->
+                <div class="card">
+                    <h3 class="card-title">Interface Configuration</h3>
+                    <p class="card-subtitle">Assign an IP address, subnet mask, description, and administrative state to an interface.</p>
+
+                    <form method="POST" action="/" class="loading-form">
+                        <input type="hidden" name="action" value="config_interface">
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="interface">Interface Name</label>
+                                <input type="text" id="interface" name="interface" list="interface-list" placeholder="e.g. GigabitEthernet0/1 or Loopback0" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="status">Interface State</label>
+                                <select id="status" name="status">
+                                    <option value="no shutdown" selected>Up (no shutdown)</option>
+                                    <option value="shutdown">Down (shutdown)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ip_address">IP Address</label>
+                                <input type="text" id="ip_address" name="ip_address" placeholder="e.g. 192.168.1.1" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="subnet_mask">Subnet Mask</label>
+                                <input type="text" id="subnet_mask" name="subnet_mask" list="mask-list" placeholder="e.g. 255.255.255.0" required>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label for="description">Description (Optional)</label>
+                                <input type="text" id="description" name="description" placeholder="e.g. LAN Gateway Interface">
+                            </div>
+                        </div>
+
+                        <div class="form-footer">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="save_config" checked>
+                                Save to startup-config (write memory)
+                            </label>
+                            <button type="submit" class="btn-primary">Apply Interface Config</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 2. Basic Device Settings -->
+                <div class="card">
+                    <h3 class="card-title">Basic Device Settings</h3>
+                    <p class="card-subtitle">Update the router hostname or login banner. Leave any field blank to keep its current value.</p>
+
+                    <form method="POST" action="/" class="loading-form">
+                        <input type="hidden" name="action" value="config_device">
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="hostname">Hostname</label>
+                                <input type="text" id="hostname" name="hostname" placeholder="e.g. R1-Main">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="banner">Banner MOTD</label>
+                                <input type="text" id="banner" name="banner" placeholder="e.g. Authorized Access Only">
+                            </div>
+                        </div>
+
+                        <div class="form-footer">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="save_config" checked>
+                                Save to startup-config (write memory)
+                            </label>
+                            <button type="submit" class="btn-primary">Apply Device Settings</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 3. Static Route -->
+                <div class="card">
+                    <h3 class="card-title">Static Route</h3>
+                    <p class="card-subtitle">Add an IPv4 static route to the routing table.</p>
+
+                    <form method="POST" action="/" class="loading-form">
+                        <input type="hidden" name="action" value="config_route">
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="dest_network">Destination Network</label>
+                                <input type="text" id="dest_network" name="dest_network" placeholder="e.g. 10.0.0.0" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="route_mask">Subnet Mask</label>
+                                <input type="text" id="route_mask" name="route_mask" list="mask-list" placeholder="e.g. 255.255.255.0" required>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label for="next_hop">Next-Hop IP or Exit Interface</label>
+                                <input type="text" id="next_hop" name="next_hop" placeholder="e.g. 192.168.10.1 or GigabitEthernet0/0" required>
+                            </div>
+                        </div>
+
+                        <div class="form-footer">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="save_config" checked>
+                                Save to startup-config (write memory)
+                            </label>
+                            <button type="submit" class="btn-primary">Add Static Route</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        function switchTab(tabId) {
+            document.querySelectorAll(".page-section").forEach(section => {
+                section.classList.toggle("active", section.id === tabId);
+            });
+
+            document.querySelectorAll(".nav-btn").forEach(btn => {
+                btn.classList.toggle("active", btn.dataset.tab === tabId);
+            });
+
+            const alertBox = document.getElementById("alertBox");
+            if (alertBox) {
+                alertBox.style.display = "none";
+            }
+        }
+
+        document.querySelectorAll(".loading-form").forEach(form => {
+            form.addEventListener("submit", () => {
+                const btn = form.querySelector("button[type='submit']");
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = "Applying...";
+                }
+            });
+        });
+    </script>
+</body>
+</html>
